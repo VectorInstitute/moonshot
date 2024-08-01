@@ -87,7 +87,7 @@ def ms_ui_env_file(ui_repo):
 def moonshot_data_installation():
     # Code for moonshot-data installation
     logger.info("Installing Moonshot Data from GitHub")
-    repo = "https://github.com/aiverify-foundation/moonshot-data.git"
+    repo = "https://github.com/VectorInstitute/moonshot-data.git"
     folder_name = repo.split("/")[-1].replace(".git", "")
 
     # Check if the directory already exists
@@ -122,7 +122,7 @@ def moonshot_data_installation():
 
 def moonshot_ui_installation():
     # Code for moonshot-ui installation
-    repo = "https://github.com/aiverify-foundation/moonshot-ui.git"
+    repo = "https://github.com/VectorInstitute/moonshot-ui.git"
     folder_name = repo.split("/")[-1].replace(".git", "")
 
     # Check if the directory already exists
