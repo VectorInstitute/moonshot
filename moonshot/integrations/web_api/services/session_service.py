@@ -1,5 +1,5 @@
 from dependency_injector.wiring import inject
-
+import logging
 from moonshot.src.api.api_session import api_create_session
 from moonshot.src.runners.runner import Runner
 
@@ -15,6 +15,8 @@ from ..status_updater.interface.redteam_progress_callback import (
     InterfaceRedTeamProgressCallback,
 )
 from .base_service import BaseService
+
+logger = logging.getLogger(__name__)
 
 
 class SessionService(BaseService):
@@ -59,7 +61,8 @@ class SessionService(BaseService):
             description=session_create_dto.description,
             progress_callback_func=self.progress_status_updater.on_art_progress_update,
         )
-        self.active_runner = runner
+        #self.active_runner = runner
+        logger.info(f"Created a new runner: {runner}")
 
         # Prepare runner arguments for session creation
         runner_args = {
@@ -143,8 +146,8 @@ class SessionService(BaseService):
         runner: Runner = self.runner_service.load_runner(
             runner_id, self.progress_status_updater.on_art_progress_update
         )
-        self.active_runner = runner
-        session_metadata_dict = moonshot_api.api_load_session(self.active_runner.id)
+        #self.active_runner = runner
+        session_metadata_dict = moonshot_api.api_load_session(runner_id)
 
         if not isinstance(session_metadata_dict, dict):
             raise ValueError(
@@ -175,10 +178,10 @@ class SessionService(BaseService):
         Returns:
             The updated chat records for the session.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
         session_chat = moonshot_api.api_get_all_chats_from_session(
-            self.active_runner.id
+            runner.id
         )
         return session_chat
 
@@ -203,10 +206,10 @@ class SessionService(BaseService):
             runner_id (str): The unique identifier of the runner.
             prompt_template_name (str): The name of the prompt template to be selected.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
         moonshot_api.api_update_prompt_template(
-            self.active_runner.id, prompt_template_name
+            runner.id, prompt_template_name
         )
 
     @exception_handler
@@ -221,13 +224,13 @@ class SessionService(BaseService):
             ctx_strategy_name (str): The name of the context strategy to be selected.
             num_of_prompt (int): The number of previous prompts to consider in the strategy.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
         moonshot_api.api_update_context_strategy(
-            self.active_runner.id, ctx_strategy_name
+            runner.id, ctx_strategy_name
         )
         moonshot_api.api_update_cs_num_of_prev_prompts(
-            self.active_runner.id, num_of_prompt
+            runner.id, num_of_prompt
         )
 
     @exception_handler
@@ -239,9 +242,9 @@ class SessionService(BaseService):
             runner_id (str): The unique identifier of the runner.
             attack_module_name (str): The name of the attack module to be selected.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
-        moonshot_api.api_update_attack_module(self.active_runner.id, attack_module_name)
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
+        moonshot_api.api_update_attack_module(runner.id, attack_module_name)
 
     @exception_handler
     def select_metric(self, runner_id: str, metric_name: str = ""):
@@ -252,9 +255,9 @@ class SessionService(BaseService):
             runner_id (str): The unique identifier of the runner.
             metric_name (str): The name of the metric to be selected.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
-        moonshot_api.api_update_metric(self.active_runner.id, metric_name)
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
+        moonshot_api.api_update_metric(runner.id, metric_name)
 
     @exception_handler
     def update_system_prompt(self, runner_id: str, system_prompt: str = ""):
@@ -265,9 +268,9 @@ class SessionService(BaseService):
             runner_id (str): The unique identifier of the runner.
             system_prompt (str): The new system prompt to be set.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
-        moonshot_api.api_update_system_prompt(self.active_runner.id, system_prompt)
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
+        moonshot_api.api_update_system_prompt(runner.id, system_prompt)
 
     @exception_handler
     async def send_prompt(
@@ -283,13 +286,15 @@ class SessionService(BaseService):
         Returns:
             The result of the red teaming operation initiated by the prompt.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
 
-        session_metadata = moonshot_api.api_load_session(self.active_runner.id)
+        this_runner = self.runner_service.load_runner(runner_id)
+        logger.info(f"This runner: {this_runner}")
+        session_metadata = moonshot_api.api_load_session(runner_id)
         if session_metadata is None:
             raise RuntimeError(
-                f"No session metadata found for runner ID: {self.active_runner.id}"
+                f"No session metadata found for runner ID: {runner_id}"
             )
 
         def get_metadata_value(key, default=""):
@@ -320,21 +325,21 @@ class SessionService(BaseService):
             rt_args["attack_module_id"] = attack_module
             rt_args["metric_ids"] = [metric] if metric else []
             id = await self.auto_red_team_test_manager.schedule_art_task(
-                rt_args, self.active_runner, batch_size
+                rt_args, this_runner, batch_size
             )
             return id
         else:
-            response = await self.active_runner.run_red_teaming(
+            response = await this_runner.run_red_teaming(
                 {"manual_rt_args": rt_args}
             )
             return PromptResponseModel.model_validate(response)
 
     @exception_handler
     async def cancel_auto_redteam(self, runner_id: str):
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
 
-        await self.auto_red_team_test_manager.cancel_task(self.active_runner.id)
+        await self.auto_red_team_test_manager.cancel_task(runner_id)
 
     @exception_handler
     async def end_session(self, runner_id: str):
@@ -344,7 +349,7 @@ class SessionService(BaseService):
         Args:
             runner_id (str): The unique identifier of the runner whose session is to be ended.
         """
-        if self.active_runner.id != runner_id:
-            raise RuntimeError("Active session and requested session do not match.")
-
-        self.active_runner.close()
+        #if self.active_runner.id != runner_id:
+        #    raise RuntimeError("Active session and requested session do not match.")
+        this_runner = self.runner_service.load_runner(runner_id)
+        this_runner.close()
